@@ -173,7 +173,7 @@ func (f lazyFlag) match(op syntax.EmptyOp) bool {
 // match runs the machine over the input starting at pos.
 // It reports whether a match was found.
 // If so, m.matchcap holds the submatch information.
-func (m *machine) match(i input, pos int) bool {
+func (m *machine) match(i input, ranges []Range, pos int) bool {
 	startCond := m.re.cond
 	if startCond == ^syntax.EmptyOp(0) { // impossible
 		return false
@@ -530,17 +530,20 @@ func (re *Regexp) doExecute(r io.RuneReader, b []byte, s string, ranges []Range,
 	}
 
 	if re.onepass != nil {
+		// TODO: implement with ranges
 		return re.doOnePass(r, b, s, pos, ncap, dstCap)
 	}
 	if r == nil && len(b)+len(s) < re.maxBitStateLen {
+		// TODO: implement with ranges
 		return re.backtrack(b, s, pos, ncap, dstCap)
 	}
 
+	// TODO: slice ranges to minimize the size
 	m := re.get()
 	i, _ := m.inputs.init(r, b, s)
 
 	m.init(ncap)
-	if !m.match(i, pos) {
+	if !m.match(i, ranges, pos) {
 		re.put(m)
 		return nil
 	}

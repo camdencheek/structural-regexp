@@ -10,6 +10,5 @@ Object.assign(globalThis, { Request, Response, Headers })
 `
 
 func TestRanges(t *testing.T) {
-	ranges := ParseJavascript([]byte(source))
-	t.Fatalf("%#v\n", ranges)
+	_ = ParseJavascript([]byte(source))
 }

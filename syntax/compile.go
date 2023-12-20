@@ -125,10 +125,15 @@ func (c *compiler) compile(re *Regexp) frag {
 	case OpNoWordBoundary:
 		return c.empty(EmptyNoWordBoundary)
 	case OpCapture:
-		bra := c.cap(uint32(re.Cap << 1))
-		sub := c.compile(re.Sub[0])
-		ket := c.cap(uint32(re.Cap<<1 | 1))
-		return c.cat(c.cat(bra, sub), ket)
+		// TODO: we need to add an instruction here that can handle ranges
+		if re.Flags&GroupAST == 0 {
+			bra := c.cap(uint32(re.Cap << 1))
+			sub := c.compile(re.Sub[0])
+			ket := c.cap(uint32(re.Cap<<1 | 1))
+			return c.cat(c.cat(bra, sub), ket)
+		} else {
+			panic("unimplemented GroupAST")
+		}
 	case OpStar:
 		return c.star(c.compile(re.Sub[0]), re.Flags&NonGreedy != 0)
 	case OpPlus:
