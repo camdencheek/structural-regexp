@@ -579,7 +579,7 @@ func (re *Regexp) ReplaceAllString(src, repl string) string {
 	if strings.Contains(repl, "$") {
 		n = 2 * (re.numSubexp + 1)
 	}
-	b := re.replaceAll(nil, src, n, func(dst []byte, match []int) []byte {
+	b := re.replaceAll(nil, src, nil, n, func(dst []byte, match []int) []byte {
 		return re.expand(dst, repl, nil, src, match)
 	})
 	return string(b)
@@ -589,7 +589,7 @@ func (re *Regexp) ReplaceAllString(src, repl string) string {
 // with the replacement string repl. The replacement repl is substituted directly,
 // without using [Regexp.Expand].
 func (re *Regexp) ReplaceAllLiteralString(src, repl string) string {
-	return string(re.replaceAll(nil, src, 2, func(dst []byte, match []int) []byte {
+	return string(re.replaceAll(nil, src, nil, 2, func(dst []byte, match []int) []byte {
 		return append(dst, repl...)
 	}))
 }
@@ -599,13 +599,13 @@ func (re *Regexp) ReplaceAllLiteralString(src, repl string) string {
 // to the matched substring. The replacement returned by repl is substituted
 // directly, without using [Regexp.Expand].
 func (re *Regexp) ReplaceAllStringFunc(src string, repl func(string) string) string {
-	b := re.replaceAll(nil, src, 2, func(dst []byte, match []int) []byte {
+	b := re.replaceAll(nil, src, nil, 2, func(dst []byte, match []int) []byte {
 		return append(dst, repl(src[match[0]:match[1]])...)
 	})
 	return string(b)
 }
 
-func (re *Regexp) replaceAll(bsrc []byte, src string, nmatch int, repl func(dst []byte, m []int) []byte) []byte {
+func (re *Regexp) replaceAll(bsrc []byte, src string, ranges []Range, nmatch int, repl func(dst []byte, m []int) []byte) []byte {
 	lastMatchEnd := 0 // end position of the most recent match
 	searchPos := 0    // position where we next look for a match
 	var buf []byte
@@ -621,7 +621,7 @@ func (re *Regexp) replaceAll(bsrc []byte, src string, nmatch int, repl func(dst 
 
 	var dstCap [2]int
 	for searchPos <= endPos {
-		a := re.doExecute(nil, bsrc, src, searchPos, nmatch, dstCap[:0])
+		a := re.doExecute(nil, bsrc, src, ranges, searchPos, nmatch, dstCap[:0])
 		if len(a) == 0 {
 			break // no more matches
 		}
@@ -679,7 +679,7 @@ func (re *Regexp) ReplaceAll(src, repl []byte) []byte {
 		n = 2 * (re.numSubexp + 1)
 	}
 	srepl := ""
-	b := re.replaceAll(src, "", n, func(dst []byte, match []int) []byte {
+	b := re.replaceAll(src, "", nil, n, func(dst []byte, match []int) []byte {
 		if len(srepl) != len(repl) {
 			srepl = string(repl)
 		}
@@ -692,7 +692,7 @@ func (re *Regexp) ReplaceAll(src, repl []byte) []byte {
 // with the replacement bytes repl. The replacement repl is substituted directly,
 // without using [Regexp.Expand].
 func (re *Regexp) ReplaceAllLiteral(src, repl []byte) []byte {
-	return re.replaceAll(src, "", 2, func(dst []byte, match []int) []byte {
+	return re.replaceAll(src, "", nil, 2, func(dst []byte, match []int) []byte {
 		return append(dst, repl...)
 	})
 }
@@ -702,7 +702,7 @@ func (re *Regexp) ReplaceAllLiteral(src, repl []byte) []byte {
 // to the matched byte slice. The replacement returned by repl is substituted
 // directly, without using [Regexp.Expand].
 func (re *Regexp) ReplaceAllFunc(src []byte, repl func([]byte) []byte) []byte {
-	return re.replaceAll(src, "", 2, func(dst []byte, match []int) []byte {
+	return re.replaceAll(src, "", nil, 2, func(dst []byte, match []int) []byte {
 		return append(dst, repl(src[match[0]:match[1]])...)
 	})
 }
@@ -771,7 +771,7 @@ func (re *Regexp) pad(a []int) []int {
 // allMatches calls deliver at most n times
 // with the location of successive matches in the input text.
 // The input text is b if non-nil, otherwise s.
-func (re *Regexp) allMatches(s string, b []byte, n int, deliver func([]int)) {
+func (re *Regexp) allMatches(s string, b []byte, ranges []Range, n int, deliver func([]int)) {
 	var end int
 	if b == nil {
 		end = len(s)
@@ -780,7 +780,7 @@ func (re *Regexp) allMatches(s string, b []byte, n int, deliver func([]int)) {
 	}
 
 	for pos, i, prevMatchEnd := 0, 0, -1; i < n && pos <= end; {
-		matches := re.doExecute(nil, b, s, pos, re.prog.NumCap, nil)
+		matches := re.doExecute(nil, b, s, ranges, pos, re.prog.NumCap, nil)
 		if len(matches) == 0 {
 			break
 		}
@@ -822,7 +822,7 @@ func (re *Regexp) allMatches(s string, b []byte, n int, deliver func([]int)) {
 // A return value of nil indicates no match.
 func (re *Regexp) Find(b []byte) []byte {
 	var dstCap [2]int
-	a := re.doExecute(nil, b, "", 0, 2, dstCap[:0])
+	a := re.doExecute(nil, b, "", nil, 0, 2, dstCap[:0])
 	if a == nil {
 		return nil
 	}
@@ -834,7 +834,7 @@ func (re *Regexp) Find(b []byte) []byte {
 // b[loc[0]:loc[1]].
 // A return value of nil indicates no match.
 func (re *Regexp) FindIndex(b []byte) (loc []int) {
-	a := re.doExecute(nil, b, "", 0, 2, nil)
+	a := re.doExecute(nil, b, "", nil, 0, 2, nil)
 	if a == nil {
 		return nil
 	}
@@ -848,7 +848,7 @@ func (re *Regexp) FindIndex(b []byte) (loc []int) {
 // necessary to distinguish these cases.
 func (re *Regexp) FindString(s string) string {
 	var dstCap [2]int
-	a := re.doExecute(nil, nil, s, 0, 2, dstCap[:0])
+	a := re.doExecute(nil, nil, s, nil, 0, 2, dstCap[:0])
 	if a == nil {
 		return ""
 	}
@@ -860,7 +860,7 @@ func (re *Regexp) FindString(s string) string {
 // itself is at s[loc[0]:loc[1]].
 // A return value of nil indicates no match.
 func (re *Regexp) FindStringIndex(s string) (loc []int) {
-	a := re.doExecute(nil, nil, s, 0, 2, nil)
+	a := re.doExecute(nil, nil, s, nil, 0, 2, nil)
 	if a == nil {
 		return nil
 	}
@@ -873,7 +873,7 @@ func (re *Regexp) FindStringIndex(s string) (loc []int) {
 // byte offset loc[0] through loc[1]-1.
 // A return value of nil indicates no match.
 func (re *Regexp) FindReaderIndex(r io.RuneReader) (loc []int) {
-	a := re.doExecute(r, nil, "", 0, 2, nil)
+	a := re.doExecute(r, nil, "", nil, 0, 2, nil)
 	if a == nil {
 		return nil
 	}
@@ -887,7 +887,7 @@ func (re *Regexp) FindReaderIndex(r io.RuneReader) (loc []int) {
 // A return value of nil indicates no match.
 func (re *Regexp) FindSubmatch(b []byte) [][]byte {
 	var dstCap [4]int
-	a := re.doExecute(nil, b, "", 0, re.prog.NumCap, dstCap[:0])
+	a := re.doExecute(nil, b, "", nil, 0, re.prog.NumCap, dstCap[:0])
 	if a == nil {
 		return nil
 	}
@@ -1032,7 +1032,7 @@ func extract(str string) (name string, num int, rest string, ok bool) {
 // in the package comment.
 // A return value of nil indicates no match.
 func (re *Regexp) FindSubmatchIndex(b []byte) []int {
-	return re.pad(re.doExecute(nil, b, "", 0, re.prog.NumCap, nil))
+	return re.pad(re.doExecute(nil, b, "", nil, 0, re.prog.NumCap, nil))
 }
 
 // FindStringSubmatch returns a slice of strings holding the text of the
@@ -1042,7 +1042,7 @@ func (re *Regexp) FindSubmatchIndex(b []byte) []int {
 // A return value of nil indicates no match.
 func (re *Regexp) FindStringSubmatch(s string) []string {
 	var dstCap [4]int
-	a := re.doExecute(nil, nil, s, 0, re.prog.NumCap, dstCap[:0])
+	a := re.doExecute(nil, nil, s, nil, 0, re.prog.NumCap, dstCap[:0])
 	if a == nil {
 		return nil
 	}
@@ -1061,7 +1061,7 @@ func (re *Regexp) FindStringSubmatch(s string) []string {
 // 'Index' descriptions in the package comment.
 // A return value of nil indicates no match.
 func (re *Regexp) FindStringSubmatchIndex(s string) []int {
-	return re.pad(re.doExecute(nil, nil, s, 0, re.prog.NumCap, nil))
+	return re.pad(re.doExecute(nil, nil, s, nil, 0, re.prog.NumCap, nil))
 }
 
 // FindReaderSubmatchIndex returns a slice holding the index pairs
@@ -1070,7 +1070,7 @@ func (re *Regexp) FindStringSubmatchIndex(s string) []int {
 // by the 'Submatch' and 'Index' descriptions in the package comment. A
 // return value of nil indicates no match.
 func (re *Regexp) FindReaderSubmatchIndex(r io.RuneReader) []int {
-	return re.pad(re.doExecute(r, nil, "", 0, re.prog.NumCap, nil))
+	return re.pad(re.doExecute(r, nil, "", nil, 0, re.prog.NumCap, nil))
 }
 
 const startSize = 10 // The size at which to start a slice in the 'All' routines.
@@ -1084,7 +1084,7 @@ func (re *Regexp) FindAll(b []byte, n int) [][]byte {
 		n = len(b) + 1
 	}
 	var result [][]byte
-	re.allMatches("", b, n, func(match []int) {
+	re.allMatches("", b, nil, n, func(match []int) {
 		if result == nil {
 			result = make([][]byte, 0, startSize)
 		}
@@ -1102,7 +1102,21 @@ func (re *Regexp) FindAllIndex(b []byte, n int) [][]int {
 		n = len(b) + 1
 	}
 	var result [][]int
-	re.allMatches("", b, n, func(match []int) {
+	re.allMatches("", b, nil, n, func(match []int) {
+		if result == nil {
+			result = make([][]int, 0, startSize)
+		}
+		result = append(result, match[0:2])
+	})
+	return result
+}
+
+func (re *Regexp) FindAllIndexRanges(b []byte, n int, ranges []Range) [][]int {
+	if n < 0 {
+		n = len(b) + 1
+	}
+	var result [][]int
+	re.allMatches("", b, ranges, n, func(match []int) {
 		if result == nil {
 			result = make([][]int, 0, startSize)
 		}
@@ -1120,7 +1134,7 @@ func (re *Regexp) FindAllString(s string, n int) []string {
 		n = len(s) + 1
 	}
 	var result []string
-	re.allMatches(s, nil, n, func(match []int) {
+	re.allMatches(s, nil, nil, n, func(match []int) {
 		if result == nil {
 			result = make([]string, 0, startSize)
 		}
@@ -1138,7 +1152,7 @@ func (re *Regexp) FindAllStringIndex(s string, n int) [][]int {
 		n = len(s) + 1
 	}
 	var result [][]int
-	re.allMatches(s, nil, n, func(match []int) {
+	re.allMatches(s, nil, nil, n, func(match []int) {
 		if result == nil {
 			result = make([][]int, 0, startSize)
 		}
@@ -1156,7 +1170,7 @@ func (re *Regexp) FindAllSubmatch(b []byte, n int) [][][]byte {
 		n = len(b) + 1
 	}
 	var result [][][]byte
-	re.allMatches("", b, n, func(match []int) {
+	re.allMatches("", b, nil, n, func(match []int) {
 		if result == nil {
 			result = make([][][]byte, 0, startSize)
 		}
@@ -1180,7 +1194,7 @@ func (re *Regexp) FindAllSubmatchIndex(b []byte, n int) [][]int {
 		n = len(b) + 1
 	}
 	var result [][]int
-	re.allMatches("", b, n, func(match []int) {
+	re.allMatches("", b, nil, n, func(match []int) {
 		if result == nil {
 			result = make([][]int, 0, startSize)
 		}
@@ -1198,7 +1212,7 @@ func (re *Regexp) FindAllStringSubmatch(s string, n int) [][]string {
 		n = len(s) + 1
 	}
 	var result [][]string
-	re.allMatches(s, nil, n, func(match []int) {
+	re.allMatches(s, nil, nil, n, func(match []int) {
 		if result == nil {
 			result = make([][]string, 0, startSize)
 		}
@@ -1223,7 +1237,7 @@ func (re *Regexp) FindAllStringSubmatchIndex(s string, n int) [][]int {
 		n = len(s) + 1
 	}
 	var result [][]int
-	re.allMatches(s, nil, n, func(match []int) {
+	re.allMatches(s, nil, nil, n, func(match []int) {
 		if result == nil {
 			result = make([][]int, 0, startSize)
 		}

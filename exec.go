@@ -512,14 +512,14 @@ Return:
 
 // doMatch reports whether either r, b or s match the regexp.
 func (re *Regexp) doMatch(r io.RuneReader, b []byte, s string) bool {
-	return re.doExecute(r, b, s, 0, 0, nil) != nil
+	return re.doExecute(r, b, s, nil, 0, 0, nil) != nil
 }
 
 // doExecute finds the leftmost match in the input, appends the position
 // of its subexpressions to dstCap and returns dstCap.
 //
 // nil is returned if no matches are found and non-nil if matches are found.
-func (re *Regexp) doExecute(r io.RuneReader, b []byte, s string, pos int, ncap int, dstCap []int) []int {
+func (re *Regexp) doExecute(r io.RuneReader, b []byte, s string, ranges []Range, pos int, ncap int, dstCap []int) []int {
 	if dstCap == nil {
 		// Make sure 'return dstCap' is non-nil.
 		dstCap = arrayNoInts[:0:0]
