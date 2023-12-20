@@ -351,11 +351,16 @@ Again:
 		goto Again
 	case syntax.InstCapture:
 		if int(i.Arg) < len(cap) {
+			// TODO: check that we have a start range here?
+			// Or maybe we should only do that during machine matching, and only
+			// pass on that this is a structural match here?
 			opos := cap[i.Arg]
 			cap[i.Arg] = pos
 			m.add(q, i.Out, pos, cap, cond, nil)
 			cap[i.Arg] = opos
 		} else {
+			// TODO: why would this ever be true? Maybe in the case that we don't care about capture groups?
+			// We probably don't actually want to ignore capture instructions if they are structural now.
 			pc = i.Out
 			goto Again
 		}

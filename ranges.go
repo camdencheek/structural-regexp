@@ -38,10 +38,13 @@ func forEachPreorder(cursor *sitter.TreeCursor, f func(*sitter.Node)) {
 	f(cursor.CurrentNode())
 
 	// visit subtrees from left to right
+	onChild := false
 	for valid := cursor.GoToFirstChild(); valid; valid = cursor.GoToNextSibling() {
+		onChild = true
 		forEachPreorder(cursor, f)
 	}
 
-	// return cursor to the node it started on
-	cursor.GoToParent()
+	if onChild {
+		cursor.GoToParent()
+	}
 }

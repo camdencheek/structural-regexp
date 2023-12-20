@@ -65,7 +65,7 @@ const (
 	UnicodeGroups                   // allow \p{Han}, \P{Han} for Unicode group and negation
 	WasDollar                       // regexp OpEndText was $, not \z
 	Simple                          // regexp contains no counted repetition
-	GroupAST                        // parens must match AST boundaries
+	Structural                      // capture groups match AST boundaries
 
 	MatchNL = ClassNL | DotNL
 
@@ -1222,7 +1222,7 @@ Loop:
 			flags |= DotNL
 			sawFlag = true
 		case 'b':
-			flags |= GroupAST
+			flags |= Structural
 			sawFlag = true
 		case 'U':
 			flags |= NonGreedy
