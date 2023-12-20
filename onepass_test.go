@@ -6,9 +6,10 @@ package regexp
 
 import (
 	"reflect"
-	"regexp/syntax"
 	"strings"
 	"testing"
+
+	"github.com/camdencheek/structural-regexp/syntax"
 )
 
 var runeMergeTests = []struct {

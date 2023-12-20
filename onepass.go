@@ -5,11 +5,12 @@
 package regexp
 
 import (
-	"regexp/syntax"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/camdencheek/structural-regexp/syntax"
 )
 
 // "One-pass" regexp execution.
