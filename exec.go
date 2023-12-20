@@ -6,8 +6,9 @@ package regexp
 
 import (
 	"io"
-	"regexp/syntax"
 	"sync"
+
+	"github.com/camdencheek/structural-regexp/syntax"
 )
 
 // A queue is a 'sparse array' holding pending threads of execution.
