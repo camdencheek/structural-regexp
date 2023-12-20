@@ -7,12 +7,12 @@ import (
 	"github.com/smacker/go-tree-sitter/javascript"
 )
 
-type Ranges struct {
-	starts []uint32
-	ends   []uint32
+type Range struct {
+	Start uint32
+	End   uint32
 }
 
-func ParseJavascript(source []byte) Ranges {
+func ParseJavascript(source []byte) []Range {
 	parser := sitter.NewParser()
 	defer parser.Close()
 
@@ -26,10 +26,9 @@ func ParseJavascript(source []byte) Ranges {
 	cursor := sitter.NewTreeCursor(tree.RootNode())
 	defer cursor.Close()
 
-	var ranges Ranges
+	var ranges []Range
 	forEachPreorder(cursor, func(n *sitter.Node) {
-		ranges.starts = append(ranges.starts, n.StartByte())
-		ranges.ends = append(ranges.ends, n.EndByte())
+		ranges = append(ranges, Range{n.StartByte(), n.EndByte()})
 	})
 	return ranges
 }
