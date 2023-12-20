@@ -7,9 +7,28 @@ import (
 	"github.com/smacker/go-tree-sitter/javascript"
 )
 
+// TODO: compress/decompress range.
+// https://github.com/ronanh/intcomp looks nice.
 type Range struct {
 	Start uint32
 	End   uint32
+}
+
+type Ranges struct {
+	Starts []uint32
+	Ends   []uint32
+}
+
+func RangesFromRanges(input []Range) Ranges {
+	output := Ranges{
+		Starts: make([]uint32, 0, len(input)),
+		Ends:   make([]uint32, 0, len(input)),
+	}
+	for _, r := range input {
+		output.Starts = append(output.Starts, r.Start)
+		output.Ends = append(output.Ends, r.End)
+	}
+	return output
 }
 
 func ParseJavascript(source []byte) []Range {
