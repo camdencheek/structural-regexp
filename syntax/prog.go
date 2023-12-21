@@ -36,6 +36,7 @@ const (
 	InstRune1
 	InstRuneAny
 	InstRuneAnyNotNL
+	InstStructural
 )
 
 var instOpNames = []string{

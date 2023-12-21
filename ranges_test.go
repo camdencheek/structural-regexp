@@ -114,7 +114,7 @@ module.exports = { compressRecordings, decompressRecordings, deleteRecordings }
 func TestRanges(t *testing.T) {
 	res := ParseJavascript([]byte(source))
 	before := len(res) * 8
-	output := RangesFromRanges(res)
+	output := ColumnRangesFromRanges(res)
 	compressedStarts := intcomp.CompressUint32(output.Starts, nil)
 	compressedEnds := intcomp.CompressUint32(output.Ends, nil)
 	after := (len(compressedStarts) + len(compressedEnds)) * 4

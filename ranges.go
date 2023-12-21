@@ -14,13 +14,21 @@ type Range struct {
 	End   uint32
 }
 
-type Ranges struct {
+// ColumnRanges is a column-oriented representation of []Range
+type ColumnRanges struct {
 	Starts []uint32
 	Ends   []uint32
 }
 
-func RangesFromRanges(input []Range) Ranges {
-	output := Ranges{
+func (c *ColumnRanges) Slice(start, end int) ColumnRanges {
+	return ColumnRanges{
+		Starts: c.Starts[start:end],
+		Ends:   c.Ends[start:end],
+	}
+}
+
+func ColumnRangesFromRanges(input []Range) ColumnRanges {
+	output := ColumnRanges{
 		Starts: make([]uint32, 0, len(input)),
 		Ends:   make([]uint32, 0, len(input)),
 	}

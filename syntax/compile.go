@@ -125,17 +125,16 @@ func (c *compiler) compile(re *Regexp) frag {
 	case OpNoWordBoundary:
 		return c.empty(EmptyNoWordBoundary)
 	case OpCapture:
-		// I think the left shift here is reserving space for both a start and end index
-		bra := c.cap(uint32(re.Cap<<1), false)
-		sub := c.compile(re.Sub[0])
-		ket := c.cap(uint32(re.Cap<<1|1), false)
 		if re.Flags&Structural == 0 {
+			bra := c.cap(uint32(re.Cap << 1))
+			sub := c.compile(re.Sub[0])
+			ket := c.cap(uint32(re.Cap<<1 | 1))
 			return c.cat(c.cat(bra, sub), ket)
 		} else {
-			// TODO: we need to somehow wrap the capture group in boundary assertions
-			// TODO: Or, since we'll have access to the start of the capture and the end
-			// of the capture during execution,
-			panic("unimplemented GroupAST")
+			bra := c.structural(uint32(re.Cap << 1))
+			sub := c.compile(re.Sub[0])
+			ket := c.structural(uint32(re.Cap<<1 | 1))
+			return c.cat(c.cat(bra, sub), ket)
 		}
 	case OpStar:
 		return c.star(c.compile(re.Sub[0]), re.Flags&NonGreedy != 0)
@@ -183,8 +182,8 @@ func (c *compiler) fail() frag {
 	return frag{}
 }
 
-func (c *compiler) cap(arg uint32, structural bool) frag {
-	f := c.inst(InstCapture)
+func (c *compiler) structural(arg uint32) frag {
+	f := c.inst(InstStructural)
 	f.out = makePatchList(f.i << 1)
 	c.p.Inst[f.i].Arg = arg
 	if structural {
@@ -192,6 +191,17 @@ func (c *compiler) cap(arg uint32, structural bool) frag {
 		// capture group is structural
 		c.p.Inst[f.i].Rune = make([]rune, 0)
 	}
+
+	if c.p.NumCap < int(arg)+1 {
+		c.p.NumCap = int(arg) + 1
+	}
+	return f
+}
+
+func (c *compiler) cap(arg uint32) frag {
+	f := c.inst(InstCapture)
+	f.out = makePatchList(f.i << 1)
+	c.p.Inst[f.i].Arg = arg
 
 	if c.p.NumCap < int(arg)+1 {
 		c.p.NumCap = int(arg) + 1
