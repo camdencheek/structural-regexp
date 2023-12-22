@@ -1221,7 +1221,7 @@ Loop:
 		case 's':
 			flags |= DotNL
 			sawFlag = true
-		case 'b':
+		case 'S':
 			flags |= Structural
 			sawFlag = true
 		case 'U':

@@ -1,7 +1,7 @@
 package regexp
 
 import (
-	"github.com/ronanh/intcomp"
+	// "github.com/ronanh/intcomp"
 	"testing"
 )
 
@@ -113,10 +113,8 @@ module.exports = { compressRecordings, decompressRecordings, deleteRecordings }
 
 func TestRanges(t *testing.T) {
 	res := ParseJavascript([]byte(source))
-	before := len(res) * 8
 	output := ColumnRangesFromRanges(res)
-	compressedStarts := intcomp.CompressUint32(output.Starts, nil)
-	compressedEnds := intcomp.CompressUint32(output.Ends, nil)
-	after := (len(compressedStarts) + len(compressedEnds)) * 4
-	t.Fatalf("%d, %d", before, after)
+	r := MustCompile(`(?Ss)const (\{.*\})`)
+	found := r.FindAllIndexRanges([]byte(source), -1, output)
+	t.Fatalf("%+v", found)
 }

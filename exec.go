@@ -6,6 +6,7 @@ package regexp
 
 import (
 	"io"
+	"slices"
 	"sync"
 
 	"github.com/camdencheek/structural-regexp/syntax"
@@ -173,7 +174,7 @@ func (f lazyFlag) match(op syntax.EmptyOp) bool {
 // match runs the machine over the input starting at pos.
 // It reports whether a match was found.
 // If so, m.matchcap holds the submatch information.
-func (m *machine) match(i input, ranges []Range, pos int) bool {
+func (m *machine) match(i input, ranges ColumnRanges, pos int) bool {
 	startCond := m.re.cond
 	if startCond == ^syntax.EmptyOp(0) { // impossible
 		return false
@@ -220,10 +221,10 @@ func (m *machine) match(i input, ranges []Range, pos int) bool {
 			if len(m.matchcap) > 0 {
 				m.matchcap[0] = pos
 			}
-			m.add(runq, uint32(m.p.Start), pos, m.matchcap, &flag, nil)
+			m.add(runq, uint32(m.p.Start), pos, ranges, m.matchcap, &flag, nil)
 		}
 		flag = newLazyFlag(r, r1)
-		m.step(runq, nextq, pos, pos+width, r, &flag)
+		m.step(runq, nextq, ranges, pos, pos+width, r, &flag)
 		if width == 0 {
 			break
 		}
@@ -258,7 +259,7 @@ func (m *machine) clear(q *queue) {
 // The step processes the rune c (which may be endOfText),
 // which starts at position pos and ends at nextPos.
 // nextCond gives the setting for the empty-width flags after c.
-func (m *machine) step(runq, nextq *queue, pos, nextPos int, c rune, nextCond *lazyFlag) {
+func (m *machine) step(runq, nextq *queue, ranges ColumnRanges, pos, nextPos int, c rune, nextCond *lazyFlag) {
 	longest := m.re.longest
 	for j := 0; j < len(runq.dense); j++ {
 		d := &runq.dense[j]
@@ -302,7 +303,7 @@ func (m *machine) step(runq, nextq *queue, pos, nextPos int, c rune, nextCond *l
 			add = c != '\n'
 		}
 		if add {
-			t = m.add(nextq, i.Out, nextPos, t.cap, nextCond, t)
+			t = m.add(nextq, i.Out, nextPos, ranges, t.cap, nextCond, t)
 		}
 		if t != nil {
 			m.pool = append(m.pool, t)
@@ -315,7 +316,7 @@ func (m *machine) step(runq, nextq *queue, pos, nextPos int, c rune, nextCond *l
 // It also recursively adds an entry for all instructions reachable from pc by following
 // empty-width conditions satisfied by cond.  pos gives the current position
 // in the input.
-func (m *machine) add(q *queue, pc uint32, pos int, cap []int, cond *lazyFlag, t *thread) *thread {
+func (m *machine) add(q *queue, pc uint32, pos int, ranges ColumnRanges, cap []int, cond *lazyFlag, t *thread) *thread {
 Again:
 	if pc == 0 {
 		return t
@@ -338,7 +339,7 @@ Again:
 	case syntax.InstFail:
 		// nothing
 	case syntax.InstAlt, syntax.InstAltMatch:
-		t = m.add(q, i.Out, pos, cap, cond, t)
+		t = m.add(q, i.Out, pos, ranges, cap, cond, t)
 		pc = i.Arg
 		goto Again
 	case syntax.InstEmptyWidth:
@@ -350,17 +351,42 @@ Again:
 		pc = i.Out
 		goto Again
 	case syntax.InstCapture:
+		if i.Rune != nil { // Non-nil Rune indicates a structural capture group
+			// Structural assertions are zero-width because they don't consume a rune.
+			if i.Arg&1 == 0 {
+				// Beginning of match group
+				// TODO: are there any special meanings of pos where it wouldn't fit into a uint32?
+				if _, found := slices.BinarySearch(ranges.Starts, uint32(pos)); !found {
+					break
+				}
+			} else {
+				rangeStart := cap[i.Arg&^(uint32(1))]
+				sliceStart, _ := slices.BinarySearchFunc(ranges.Starts, uint32(rangeStart), func(a, b uint32) int {
+					if a < b {
+						return -1
+					} else {
+						return 1
+					}
+				})
+				sliceEnd, _ := slices.BinarySearchFunc(ranges.Starts, uint32(rangeStart), func(a, b uint32) int {
+					if a <= b {
+						return -1
+					} else {
+						return 1
+					}
+				})
+				if _, foundEnd := slices.BinarySearch(ranges.Ends[sliceStart:sliceEnd], uint32(pos)); !foundEnd {
+					break
+				}
+			}
+		}
+
 		if int(i.Arg) < len(cap) {
-			// TODO: check that we have a start range here?
-			// Or maybe we should only do that during machine matching, and only
-			// pass on that this is a structural match here?
 			opos := cap[i.Arg]
 			cap[i.Arg] = pos
-			m.add(q, i.Out, pos, cap, cond, nil)
-			cap[i.Arg] = opos
+			m.add(q, i.Out, pos, ranges, cap, cond, nil)
+			cap[i.Arg] = opos // TODO: why do we restore the position?
 		} else {
-			// TODO: why would this ever be true? Maybe in the case that we don't care about capture groups?
-			// We probably don't actually want to ignore capture instructions if they are structural now.
 			pc = i.Out
 			goto Again
 		}
@@ -517,14 +543,14 @@ Return:
 
 // doMatch reports whether either r, b or s match the regexp.
 func (re *Regexp) doMatch(r io.RuneReader, b []byte, s string) bool {
-	return re.doExecute(r, b, s, nil, 0, 0, nil) != nil
+	return re.doExecute(r, b, s, ColumnRanges{}, 0, 0, nil) != nil
 }
 
 // doExecute finds the leftmost match in the input, appends the position
 // of its subexpressions to dstCap and returns dstCap.
 //
 // nil is returned if no matches are found and non-nil if matches are found.
-func (re *Regexp) doExecute(r io.RuneReader, b []byte, s string, ranges []Range, pos int, ncap int, dstCap []int) []int {
+func (re *Regexp) doExecute(r io.RuneReader, b []byte, s string, ranges ColumnRanges, pos int, ncap int, dstCap []int) []int {
 	if dstCap == nil {
 		// Make sure 'return dstCap' is non-nil.
 		dstCap = arrayNoInts[:0:0]
