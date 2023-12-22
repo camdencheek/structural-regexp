@@ -15,6 +15,7 @@
 package regexp
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/camdencheek/structural-regexp/syntax"
@@ -136,7 +137,7 @@ func (b *bitState) push(re *Regexp, pc uint32, pos int, arg bool) {
 }
 
 // tryBacktrack runs a backtracking search starting at pos.
-func (re *Regexp) tryBacktrack(b *bitState, i input, pc uint32, pos int) bool {
+func (re *Regexp) tryBacktrack(b *bitState, i input, ranges ColumnRanges, pc uint32, pos int) bool {
 	longest := re.longest
 
 	b.push(re, pc, pos, false)
@@ -241,6 +242,35 @@ func (re *Regexp) tryBacktrack(b *bitState, i input, pc uint32, pos int) bool {
 			goto CheckAndLoop
 
 		case syntax.InstCapture:
+			if inst.Rune != nil { // Non-nil Rune indicates a structural capture group
+				// Structural assertions are zero-width because they don't consume a rune.
+				if inst.Arg&1 == 0 {
+					// Beginning of match group
+					// TODO: are there any special meanings of pos where it wouldn't fit into a uint32?
+					if _, found := slices.BinarySearch(ranges.Starts, uint32(pos)); !found {
+						continue
+					}
+				} else {
+					rangeStart := b.cap[inst.Arg&^(uint32(1))]
+					sliceStart, _ := slices.BinarySearchFunc(ranges.Starts, uint32(rangeStart), func(a, b uint32) int {
+						if a < b {
+							return -1
+						} else {
+							return 1
+						}
+					})
+					sliceEnd, _ := slices.BinarySearchFunc(ranges.Starts, uint32(rangeStart), func(a, b uint32) int {
+						if a <= b {
+							return -1
+						} else {
+							return 1
+						}
+					})
+					if !slices.Contains(ranges.Ends[sliceStart:sliceEnd], uint32(pos)) {
+						continue
+					}
+				}
+			}
 			if arg {
 				// Finished inst.Out; restore the old value.
 				b.cap[inst.Arg] = pos
@@ -303,7 +333,7 @@ func (re *Regexp) tryBacktrack(b *bitState, i input, pc uint32, pos int) bool {
 }
 
 // backtrack runs a backtracking search of prog on the input starting at pos.
-func (re *Regexp) backtrack(ib []byte, is string, pos int, ncap int, dstCap []int) []int {
+func (re *Regexp) backtrack(ib []byte, is string, ranges ColumnRanges, pos int, ncap int, dstCap []int) []int {
 	startCond := re.cond
 	if startCond == ^syntax.EmptyOp(0) { // impossible
 		return nil
@@ -322,7 +352,7 @@ func (re *Regexp) backtrack(ib []byte, is string, pos int, ncap int, dstCap []in
 		if len(b.cap) > 0 {
 			b.cap[0] = pos
 		}
-		if !re.tryBacktrack(b, i, uint32(re.prog.Start), pos) {
+		if !re.tryBacktrack(b, i, ranges, uint32(re.prog.Start), pos) {
 			freeBitState(b)
 			return nil
 		}
@@ -349,7 +379,7 @@ func (re *Regexp) backtrack(ib []byte, is string, pos int, ncap int, dstCap []in
 			if len(b.cap) > 0 {
 				b.cap[0] = pos
 			}
-			if re.tryBacktrack(b, i, uint32(re.prog.Start), pos) {
+			if re.tryBacktrack(b, i, ranges, uint32(re.prog.Start), pos) {
 				// Match must be leftmost; done.
 				goto Match
 			}

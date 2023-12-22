@@ -566,7 +566,7 @@ func (re *Regexp) doExecute(r io.RuneReader, b []byte, s string, ranges ColumnRa
 	}
 	if r == nil && len(b)+len(s) < re.maxBitStateLen {
 		// TODO: implement with ranges
-		return re.backtrack(b, s, pos, ncap, dstCap)
+		return re.backtrack(b, s, ranges, pos, ncap, dstCap)
 	}
 
 	// TODO: slice ranges to minimize the size
